@@ -30,6 +30,13 @@ Dal progetto SLOT_MAP, il modo con i controlli:
 `publish.mjs` compatta il database e si ferma se dentro non ci sono né mappa né
 slot. Caricando il file a mano dalla pagina di GitHub quel controllo non c'è.
 
+**Ogni pubblicazione fa riscaricare tutto, anche se cambia solo il codice.** GitHub
+Pages costruisce l'impronta (`ETag`) di ogni file come `<istante-del-deploy>-<dimensione>`,
+quindi dopo qualunque push tutti i file risultano cambiati: i telefoni riscaricano il
+megabyte e mostrano la fascetta «Dati aggiornati» anche quando le slot sono le stesse.
+È innocuo, non è un guasto.
+
+
 ## Versioni
 
 Ogni pubblicazione è un commit con etichetta `v<data>`. Per tornare indietro:
