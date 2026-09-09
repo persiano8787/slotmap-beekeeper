@@ -6,7 +6,7 @@
   <title>Slot Map Viewer</title>
   <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#111827">
-    <script>window.APP_VERSION="v2026-09-09";
+    <script>window.APP_VERSION="v2026-09-09-2";
   if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js"));</script>
   <style>/* required styles */
 
@@ -1203,16 +1203,26 @@ CREATE TABLE IF NOT EXISTS lookups (
   }
 
   async function fetchDb(url = DB_URL) {
-    let res;
+    let bytes;
     try {
-      res = await fetch(url);
-    } catch {
-      throw new Error("NO_NET");   // niente rete e niente cache: prima apertura al buio
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("NO_DB");
+      bytes = new Uint8Array(await res.arrayBuffer());
+    } catch (e) {
+      // Uno stream interrotto (rete che cade mentre arrayBuffer() legge) è la stessa
+      // situazione di "niente rete": il consiglio giusto è riprovare, non "avvisa chi
+      // gestisce l'app". NO_DB è già un Error nostro, non lo confondiamo con NO_NET.
+      if (e && e.message === "NO_DB") throw e;
+      throw new Error("NO_NET");
     }
-    if (!res.ok) throw new Error("NO_DB");
-    const bytes = new Uint8Array(await res.arrayBuffer());
     if (!looksLikeSqlite(bytes)) throw new Error("BAD_DB");
     return bytes;
+  }
+
+  // Precedenza fra i due canali in una riga sola: col DB incorporato (bundle Beekeeper,
+  // window.EMBEDDED_DB valorizzato da tools/build.mjs) la rete non si tocca affatto.
+  async function loadDbBytes() {
+    return decodeEmbedded() ?? await fetchDb();
   }
   /* @embed end */
 
@@ -1591,10 +1601,11 @@ CREATE TABLE IF NOT EXISTS lookups (
     return currentColorMap[fieldOf(machine, colorBy)] || "#888";
   }
 
+  /* @boot start */
   async function boot() {
     let bytes;
     try {
-      bytes = decodeEmbedded() ?? await fetchDb();
+      bytes = await loadDbBytes();
     } catch (e) {
       showFatal(e.message);
       return;
@@ -1620,6 +1631,15 @@ CREATE TABLE IF NOT EXISTS lookups (
     el.textContent = testi[codice] || "Errore imprevisto all'avvio.";
     el.hidden = false;
   }
+
+  // boot() può fallire anche dopo aver preso i byte (createDatabase, initMap, la prima
+  // refresh...): questo .catch() è quello che porta l'errore in pagina invece di
+  // lasciarlo morire in console come una promise rejection senza nessuno che la guarda.
+  // È lo stesso guasto per cui esiste questo ramo: una mappa bianca e muta.
+  function bootstrap() {
+    return boot().catch(e => showFatal(e && e.message));
+  }
+  /* @boot end */
   function loadActiveMap() { const m = getActiveMap(db); mapId = m ? m.id : null; setBackground(handle, m); }
 
   function refresh() {
@@ -1693,7 +1713,7 @@ CREATE TABLE IF NOT EXISTS lookups (
   }
 
   window.SQL_WASM_LOCATE = f => "lib/" + f;
-  boot();
+  bootstrap();
 })();
 
 </script>
