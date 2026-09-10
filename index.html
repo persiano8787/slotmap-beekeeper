@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content">
   <title>Slot Map Viewer</title>
   <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#111827">
-    <script>window.APP_VERSION="v2026-09-09-2";
+    <script>window.APP_VERSION="v2026-09-10";
   if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js"));</script>
   <style>/* required styles */
 
@@ -794,7 +794,7 @@ html, body {
       <button id="results-toggle" class="hidden" type="button"></button>
       <div id="legend" class="hidden"></div>
       <div id="fatal" hidden></div>
-      <div id="update-banner" hidden>Dati aggiornati — tocca per ricaricare</div>
+      <div id="update-banner" hidden>Data updated — tap to reload</div>
       <div id="version"></div>
     </div>
   </div>
@@ -1253,7 +1253,14 @@ CREATE TABLE IF NOT EXISTS lookups (
 
   /* ============================ MAP / MARKERS ============================ */
   function initMap(id) {
-    const map = L.map(id, { crs: L.CRS.Simple, minZoom: -3, maxZoom: 3, attributionControl: false, zoomAnimation: false, markerZoomAnimation: false });
+    // zoomSnap 0 = niente arrotondamento al livello intero: la scala e la pizzicata
+    // restano continue. zoomDelta 0.5 da lo stesso passo fine ai bottoni +/-, e
+    // wheelPxPerZoomLevel 120 chiede alla rotella il doppio dei pixel per un livello.
+    const map = L.map(id, {
+      crs: L.CRS.Simple, minZoom: -3, maxZoom: 3,
+      zoomSnap: 0, zoomDelta: 0.5, wheelPxPerZoomLevel: 120,
+      attributionControl: false, zoomAnimation: false, markerZoomAnimation: false
+    });
     map.setView([0, 0], 0);
     const h = { map, bounds: null, imageWidth: 0, imageHeight: 0, _slots: [], _overlay: null, _objectUrl: null, _layer: null };
     return h;
@@ -1610,7 +1617,7 @@ CREATE TABLE IF NOT EXISTS lookups (
       showFatal(e.message);
       return;
     }
-    db = await createDatabase(bytes);
+    db = await createDatabase(bytes).catch(() => { throw new Error("BAD_DB"); });
     handle = initMap("map");
     loadActiveMap();
     refresh();
@@ -1623,12 +1630,12 @@ CREATE TABLE IF NOT EXISTS lookups (
   // è esattamente il sintomo che questa versione va a togliere.
   function showFatal(codice) {
     const testi = {
-      NO_NET: "Serve rete alla prima apertura. Riprova quando hai segnale.",
-      NO_DB: "Dati non disponibili. Avvisa chi gestisce l'app.",
-      BAD_DB: "Dati non disponibili. Avvisa chi gestisce l'app.",
+      NO_NET: "Needs a connection the first time. Try again when you have signal.",
+      NO_DB: "Data unavailable. Please tell the app administrator.",
+      BAD_DB: "Data unavailable. Please tell the app administrator.",
     };
     const el = document.getElementById("fatal");
-    el.textContent = testi[codice] || "Errore imprevisto all'avvio.";
+    el.textContent = testi[codice] || "Unexpected error at startup.";
     el.hidden = false;
   }
 
